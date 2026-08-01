@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-title" content="Flux OS"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#050508"/>
+<title>Flux OS — Boot Menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   FLUX OS — a lightweight, dependency-free boot shell.
+   It does NOT share a JS scope, CSS, or React tree with either app —
+   Flux Finance and Flux Health each run inside their own <iframe>,
+   completely isolated. That isolation is deliberate: both apps already
+   define same-named globals (lsGet/lsSet, a color palette variable
+   named N, a CSS string, etc.), so merging them into one shared scope
+   would make one silently clobber the other. Iframes sidestep that
+   entirely — each app keeps running exactly as built and tested.
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --void:#050508; --panel:#0d0f18; --border:#20243a; --borderHi:#33335c;
+  --text:#e8ecf5; --dim:#6c7a9c; --ghost:#9494c0;
+  --finance:#00ffb3; --health:#ff2ee8; --unified:#00d4ff; --violet:#b347ff;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{
+  margin:0; padding:0; width:100%; height:100%; height:100dvh;
+  background:var(--void); color:var(--text); overflow:hidden;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+}
+#boot-screen{
+  position:fixed; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:20px;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(179,71,255,0.14) 0%, transparent 45%),
+    radial-gradient(circle at 85% 25%, rgba(0,212,255,0.10) 0%, transparent 50%),
+    radial-gradient(circle at 30% 95%, rgba(255,46,232,0.08) 0%, transparent 45%),
+    var(--void);
+  animation:fadeIn .35s ease;
+}
+#boot-screen::before{
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:.35;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size:32px 32px;
+}
+@keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+.boot-wordmark{
+  font-family:'Orbitron',system-ui,sans-serif; font-size:36px; font-weight:800;
+  letter-spacing:.14em; color:#fff; margin-bottom:8px;
+  text-shadow:0 0 8px rgba(0,212,255,.6), 0 0 30px rgba(0,212,255,.35);
+  position:relative; z-index:1;
+}
+.boot-wordmark span{ color:var(--unified); }
+.boot-tagline{
+  font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.32em;
+  margin-bottom:36px; text-align:center; position:relative; z-index:1;
+}
+.boot-menu{ width:100%; max-width:420px; position:relative; z-index:1; }
+.boot-opt{
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  padding:18px; margin-bottom:14px;
+  background:linear-gradient(155deg, var(--panel), #090a11);
+  border:1px solid var(--border); border-left:4px solid var(--accent, var(--unified));
+  border-radius:10px; color:#fff; cursor:pointer; text-align:left;
+  transition:transform .15s, box-shadow .2s, border-color .15s; font-family:inherit;
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
+}
+.boot-opt:active{ transform:scale(0.98); }
+.boot-opt:hover{ box-shadow:0 0 0 1px var(--accent, var(--unified)), 0 0 28px color-mix(in srgb, var(--accent, var(--unified)) 35%, transparent), 0 4px 18px rgba(0,0,0,.35); }
+.boot-opt-icon{
+  font-size:20px; width:38px; height:38px; border-radius:9px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; margin-right:12px;
+  background:color-mix(in srgb, var(--accent, var(--unified)) 14%, transparent);
+  border:1px solid color-mix(in srgb, var(--accent, var(--unified)) 35%, transparent);
+}
+.boot-opt-main{ display:flex; align-items:center; flex:1; min-width:0; }
+.boot-opt-title{
+  font-family:'Orbitron',system-ui,sans-serif; font-size:15px; font-weight:700;
+  letter-spacing:.08em; color:var(--accent, var(--unified));
+  text-shadow:0 0 12px color-mix(in srgb, var(--accent, var(--unified)) 55%, transparent);
+}
+.boot-opt-sub{ font-size:11px; color:var(--dim); margin-top:4px; }
+.boot-opt-tag{
+  font-family:'Orbitron',system-ui,sans-serif; font-size:10px; color:var(--accent, var(--unified));
+  letter-spacing:.1em; flex-shrink:0; margin-left:12px; opacity:.85;
+}
+.boot-default-row{
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  margin-top:22px; cursor:pointer; user-select:none;
+}
+.boot-checkbox{
+  width:15px; height:15px; border:1px solid var(--unified); border-radius:3px;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  box-shadow:0 0 8px rgba(0,212,255,.25);
+}
+.boot-checkbox.checked{ background:var(--unified); box-shadow:0 0 12px rgba(0,212,255,.6); }
+.boot-checkbox span{ font-size:10px; color:#000; font-weight:800; }
+.boot-default-label{
+  font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.15em;
+}
+.boot-clear-default{
+  display:block; text-align:center; margin-top:16px; font-size:10px;
+  color:#ff5a7a; text-decoration:underline; cursor:pointer;
+}
+.boot-config-link{
+  display:block; text-align:center; margin-top:10px; font-size:10px;
+  color:var(--dim); text-decoration:underline; cursor:pointer;
+}
+/* Auto-boot countdown */
+#auto-boot{ text-align:center; position:relative; z-index:1; }
+.auto-boot-title{
+  font-family:'Orbitron',system-ui,sans-serif; font-size:18px; letter-spacing:.2em;
+  color:var(--unified); text-shadow:0 0 6px rgba(0,212,255,.7), 0 0 22px rgba(0,212,255,.4); margin-bottom:16px;
+}
+.auto-boot-sub{ font-size:12px; color:var(--dim); margin-bottom:28px; }
+.auto-boot-sub b{ color:#fff; font-size:18px; text-shadow:0 0 10px rgba(255,255,255,.5); }
+.auto-boot-btn{
+  background:transparent; border:1px solid var(--unified); color:var(--unified);
+  padding:10px 22px; font-family:'Orbitron',system-ui,sans-serif; font-size:11px;
+  letter-spacing:.1em; text-transform:uppercase; cursor:pointer; border-radius:6px;
+  box-shadow:0 0 14px rgba(0,212,255,.2);
+}
+
+/* ── Settings panel (configurable app paths) ── */
+#settings-panel{
+  position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  background:rgba(2,2,6,.86); padding:20px;
+}
+.settings-sheet{
+  width:100%; max-width:380px; background:linear-gradient(165deg,#0d0d18,#050508);
+  border:1px solid var(--borderHi); border-radius:14px; padding:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6), 0 0 30px rgba(179,71,255,.12);
+}
+.settings-title{
+  font-family:'Orbitron',system-ui,sans-serif; font-size:13px; font-weight:700;
+  color:#fff; letter-spacing:.08em; margin-bottom:4px;
+}
+.settings-hint{ font-size:10.5px; color:var(--dim); line-height:1.6; margin-bottom:16px; }
+.settings-field{ margin-bottom:14px; }
+.settings-field label{
+  display:block; font-size:9px; color:var(--dim); text-transform:uppercase;
+  letter-spacing:.12em; margin-bottom:6px; font-weight:600;
+}
+.settings-field input{
+  width:100%; padding:10px 11px; background:#12121e; border:1px solid var(--border);
+  border-radius:8px; color:#fff; font-family:monospace; font-size:12.5px; outline:none;
+}
+.settings-field input:focus{ border-color:var(--unified); }
+.settings-actions{ display:flex; gap:8px; margin-top:16px; }
+.settings-btn{
+  flex:1; padding:10px; border-radius:8px; font-family:'Space Grotesk',sans-serif;
+  font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  cursor:pointer; border:1px solid var(--border); background:transparent; color:#fff;
+}
+.settings-btn.primary{ background:var(--unified); color:#000; border-color:var(--unified); }
+
+/* ── App shell: OS bar + iframes ── */
+#app-shell{ position:fixed; inset:0; display:none; flex-direction:column; }
+#os-bar{
+  flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+  height:40px; padding:0 8px; background:#0a0a12; border-bottom:1px solid var(--border);
+  gap:6px; z-index:10; box-shadow:0 2px 12px rgba(0,0,0,.3);
+}
+.os-bar-group{ display:flex; gap:4px; align-items:center; }
+.os-bar-btn{
+  display:flex; align-items:center; gap:5px; padding:6px 10px; border-radius:7px;
+  border:1px solid transparent; background:transparent; color:var(--dim);
+  font-family:'Space Grotesk',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase; cursor:pointer; white-space:nowrap;
+}
+.os-bar-btn .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; box-shadow:0 0 6px currentColor; }
+.os-bar-btn.on{ color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); border-color:var(--accent); }
+.os-bar-btn.on.f{ --accent:var(--finance); }
+.os-bar-btn.on.h{ --accent:var(--health); }
+.os-bar-btn.on.u{ --accent:var(--unified); }
+.os-bar-exit{
+  padding:6px 10px; border-radius:7px; border:1px solid var(--border); background:transparent;
+  color:var(--dim); font-size:10px; font-family:'Space Grotesk',sans-serif; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase; cursor:pointer;
+}
+#frame-area{ flex:1; position:relative; display:flex; overflow:hidden; background:var(--void); }
+#frame-area.split{ flex-direction:row; }
+@media (max-width:899px){ #frame-area.split{ flex-direction:column; } }
+.frame-pane{ position:relative; flex:1; min-width:0; min-height:0; display:none; }
+.frame-pane.visible{ display:block; }
+#frame-area.split .frame-pane.visible{ display:block; flex:1; }
+.frame-pane iframe{ position:absolute; inset:0; width:100%; height:100%; border:none; display:block; background:#050508; }
+.frame-pane.f{ border-right:1px solid var(--border); }
+@media (max-width:899px){ .frame-pane.f{ border-right:none; border-bottom:1px solid var(--border); } }
+.frame-loading{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:var(--void); color:var(--dim); font-size:11px; letter-spacing:.1em; gap:14px;
+  text-transform:uppercase; font-family:'Space Grotesk',sans-serif; text-align:center; padding:20px;
+}
+.frame-spinner{
+  width:26px; height:26px; border-radius:50%; border:2px solid var(--border);
+  border-top-color:var(--loading-accent, var(--unified)); animation:spin .8s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.frame-error{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:var(--void); color:var(--text); text-align:center; padding:30px; gap:12px;
+}
+.frame-error-title{ font-family:'Orbitron',sans-serif; font-size:13px; color:#ff5a7a; letter-spacing:.06em; }
+.frame-error-body{ font-size:11.5px; color:var(--dim); line-height:1.7; max-width:320px; }
+.frame-error-btn{
+  margin-top:6px; padding:9px 16px; border-radius:7px; border:1px solid var(--unified);
+  background:transparent; color:var(--unified); font-family:'Space Grotesk',sans-serif;
+  font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="boot-screen"></div>
+
+<div id="app-shell">
+  <div id="os-bar">
+    <div class="os-bar-group">
+      <button class="os-bar-btn" id="btn-finance" onclick="FluxOS.show('finance')">
+        <span class="dot" style="color:#00ffb3"></span> Finance
+      </button>
+      <button class="os-bar-btn" id="btn-health" onclick="FluxOS.show('health')">
+        <span class="dot" style="color:#ff2ee8"></span> Health
+      </button>
+      <button class="os-bar-btn" id="btn-unified" onclick="FluxOS.show('unified')">
+        <span class="dot" style="color:#00d4ff"></span> Split
+      </button>
+    </div>
+    <button class="os-bar-exit" onclick="FluxOS.bootMenu()">⌂ Boot Menu</button>
+  </div>
+  <div id="frame-area">
+    <div class="frame-pane f" id="pane-finance"></div>
+    <div class="frame-pane h" id="pane-health"></div>
+  </div>
+</div>
+
+<div id="settings-panel">
+  <div class="settings-sheet">
+    <div class="settings-title">⚙ App File Locations</div>
+    <div class="settings-hint">If a page shows an error instead of loading, the filenames below probably don't match your actual files exactly (including capitalization). Check what you actually downloaded and fix the paths here.</div>
+    <div class="settings-field">
+      <label>Flux Finance file</label>
+      <input type="text" id="cfg-finance" placeholder="./FLUX.html"/>
+    </div>
+    <div class="settings-field">
+      <label>Flux Health file</label>
+      <input type="text" id="cfg-health" placeholder="./flux-health.html"/>
+    </div>
+    <div class="settings-actions">
+      <button class="settings-btn" onclick="FluxOS._closeSettings()">Cancel</button>
+      <button class="settings-btn primary" onclick="FluxOS._saveSettings()">Save &amp; Reload</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   Flux OS — vanilla JS, no framework. Deliberately dependency-free:
+   both apps already load their own React copies inside their own
+   iframes, so the shell doesn't need (and shouldn't add) another.
+
+   Storage: everything here lives under the "fluxos_" prefix, which
+   is distinct from Flux Finance's "flux_" and Flux Health's "fluxh_"
+   prefixes — verified against both apps' actual source, zero overlap.
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  var LS_DEFAULT = 'fluxos_defaultBoot';
+  var LS_LAST_ACTIVE = 'fluxos_lastActive';
+  var LS_PATHS = 'fluxos_paths';
+  var DEFAULT_PATHS = { finance: './FLUX.html', health: './flux-health.html' };
+
+  var state = {
+    mode: null,           // 'finance' | 'health' | 'unified' | null (boot menu showing)
+    loaded: { finance:false, health:false },
+    setAsDefault: false,
+    autoBootTimer: null,
+    autoBootSecondsLeft: 3
+  };
+
+  function lsGet(key, fallback){
+    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function lsSet(key, value){
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch(e){}
+  }
+  function getPaths(){
+    var saved = lsGet(LS_PATHS, null);
+    return saved || DEFAULT_PATHS;
+  }
+
+  var ICONS = { finance:'⚡', health:'\u2665', unified:'\u267E\uFE0F' };
+  var LABELS = { finance:'Flux Finance', health:'Flux Health', unified:'Unified OS' };
+
+  // ── Friendly in-place error state for a pane that failed to load ──
+  // File:// links between sibling HTML files can fail for two different
+  // reasons: (a) the filename here doesn't match what's actually on disk
+  // (fixed by editing the path), or (b) the browser itself is blocking
+  // local cross-file access (notably iOS Safari, which sandboxes file://
+  // pages from loading sibling files unless served over http(s) — no
+  // client-side fix exists for that case, it needs real web hosting).
+  function showFrameError(sys, pane, path){
+    pane.innerHTML = '';
+    var err = document.createElement('div');
+    err.className = 'frame-error';
+    err.innerHTML =
+      '<div class="frame-error-title">⚠ ' + LABELS[sys] + ' didn\u2019t load</div>' +
+      '<div class="frame-error-body">Tried to load <b>' + path + '</b> and it failed. Most likely one of two things:<br><br>' +
+      '1. The filename doesn\u2019t match exactly what you actually saved (capitalization counts).<br><br>' +
+      '2. If you\u2019re opening this directly from your phone\u2019s Files app rather than a real web address, iOS Safari often blocks one local HTML file from loading another this way \u2014 that\u2019s a phone/browser restriction, not something fixable from inside the page. Hosting all three files anywhere over http/https (even a simple free static host) fixes this completely.</div>' +
+      '<button class="frame-error-btn" onclick="FluxOS._retryFrame(\'' + sys + '\')">Retry</button>' +
+      '<button class="frame-error-btn" onclick="FluxOS._openSettings()" style="margin-top:6px;">Edit File Path</button>';
+    pane.appendChild(err);
+    state.loaded[sys] = false;
+  }
+
+  // ── Ensure a given app's iframe exists (lazy-loaded once, kept alive
+  // for the rest of the session so switching back to it is instant and
+  // never loses its in-progress state). ──
+  function ensureLoaded(sys){
+    if (state.loaded[sys]) return;
+    var pane = document.getElementById('pane-' + sys);
+    var path = getPaths()[sys];
+    pane.innerHTML = '';
+
+    var loading = document.createElement('div');
+    loading.className = 'frame-loading';
+    loading.innerHTML = '<div class="frame-spinner" style="--loading-accent:var(--' + sys + ',var(--unified))"></div><div>Loading ' + LABELS[sys] + '\u2026</div>';
+    pane.appendChild(loading);
+
+    var iframe = document.createElement('iframe');
+    iframe.title = LABELS[sys];
+
+    var settled = false;
+    var loadTimeout = setTimeout(function(){
+      if (settled) return;
+      settled = true;
+      showFrameError(sys, pane, path);
+    }, 4000);
+
+    iframe.onload = function(){
+      if (settled) return;
+      settled = true;
+      clearTimeout(loadTimeout);
+      if (loading.parentNode) loading.parentNode.removeChild(loading);
+    };
+    iframe.onerror = function(){
+      if (settled) return;
+      settled = true;
+      clearTimeout(loadTimeout);
+      showFrameError(sys, pane, path);
+    };
+
+    iframe.src = path;
+    pane.appendChild(iframe);
+    state.loaded[sys] = true;
+  }
+
+  function retryFrame(sys){
+    state.loaded[sys] = false;
+    ensureLoaded(sys);
+  }
+
+  function show(mode){
+    state.mode = mode;
+    lsSet(LS_LAST_ACTIVE, mode);
+    document.getElementById('boot-screen').style.display = 'none';
+    document.getElementById('app-shell').style.display = 'flex';
+
+    var frameArea = document.getElementById('frame-area');
+    var financePane = document.getElementById('pane-finance');
+    var healthPane = document.getElementById('pane-health');
+
+    if (mode === 'unified'){
+      frameArea.classList.add('split');
+      financePane.classList.add('visible');
+      healthPane.classList.add('visible');
+      ensureLoaded('finance'); ensureLoaded('health');
+    } else {
+      frameArea.classList.remove('split');
+      financePane.classList.toggle('visible', mode === 'finance');
+      healthPane.classList.toggle('visible', mode === 'health');
+      ensureLoaded(mode);
+    }
+
+    ['finance','health','unified'].forEach(function(m){
+      var btn = document.getElementById('btn-' + m);
+      btn.classList.toggle('on', m === mode);
+      btn.classList.toggle(m === 'finance' ? 'f' : m === 'health' ? 'h' : 'u', m === mode);
+    });
+  }
+
+  function launch(sys){
+    if (state.setAsDefault) lsSet(LS_DEFAULT, sys);
+    show(sys);
+  }
+
+  function bootMenu(){
+    if (state.autoBootTimer) { clearInterval(state.autoBootTimer); state.autoBootTimer = null; }
+    document.getElementById('app-shell').style.display = 'none';
+    document.getElementById('boot-screen').style.display = 'flex';
+    renderBootMenu();
+  }
+
+  function clearDefault(){
+    lsSet(LS_DEFAULT, null);
+    renderBootMenu();
+  }
+
+  function renderAutoBoot(defaultSys){
+    var label = defaultSys === 'finance' ? 'FLUX FINANCE' : defaultSys === 'health' ? 'FLUX HEALTH' : 'UNIFIED OS';
+    document.getElementById('boot-screen').innerHTML =
+      '<div id="auto-boot">' +
+        '<div class="auto-boot-title">FLUX OS &middot; BOOT SEQUENCE</div>' +
+        '<div class="auto-boot-sub">AUTO-LAUNCHING ' + label + ' IN <b id="auto-boot-n">' + state.autoBootSecondsLeft + '</b></div>' +
+        '<button class="auto-boot-btn" onclick="FluxOS._interruptBoot()">Interrupt Boot</button>' +
+      '</div>';
+    state.autoBootTimer = setInterval(function(){
+      state.autoBootSecondsLeft -= 1;
+      var n = document.getElementById('auto-boot-n');
+      if (n) n.textContent = state.autoBootSecondsLeft;
+      if (state.autoBootSecondsLeft <= 0){
+        clearInterval(state.autoBootTimer); state.autoBootTimer = null;
+        show(defaultSys);
+      }
+    }, 1000);
+  }
+
+  function interruptBoot(){
+    if (state.autoBootTimer) { clearInterval(state.autoBootTimer); state.autoBootTimer = null; }
+    state.autoBootSecondsLeft = 3;
+    renderBootMenu(true);
+  }
+
+  function renderBootMenu(forceMenu){
+    var defaultSys = lsGet(LS_DEFAULT, null);
+    if (defaultSys && !forceMenu){
+      renderAutoBoot(defaultSys);
+      return;
+    }
+
+    var options = [
+      { id:'unified', sub:'Finance &amp; Health side by side', color:'#00d4ff' },
+      { id:'finance', sub:'Bills, debt, savings &amp; credit tracking', color:'#00ffb3' },
+      { id:'health',  sub:'Biometrics &amp; wellness tracking', color:'#ff2ee8' }
+    ];
+
+    var html = '<div class="boot-wordmark">FLUX<span>OS</span></div>' +
+      '<div class="boot-tagline">Select Operating Environment</div>' +
+      '<div class="boot-menu">';
+
+    options.forEach(function(o){
+      html += '<button class="boot-opt" style="--accent:' + o.color + '" onclick="FluxOS.launch(\'' + o.id + '\')">' +
+        '<div class="boot-opt-main">' +
+          '<div class="boot-opt-icon">' + ICONS[o.id] + '</div>' +
+          '<div><div class="boot-opt-title">' + LABELS[o.id].toUpperCase() + '</div><div class="boot-opt-sub">' + o.sub + '</div></div>' +
+        '</div>' +
+        '<div class="boot-opt-tag">[ INIT ]</div>' +
+      '</button>';
+    });
+
+    html += '<div class="boot-default-row" onclick="FluxOS._toggleDefault()">' +
+        '<div class="boot-checkbox' + (state.setAsDefault ? ' checked' : '') + '" id="boot-checkbox"><span>' + (state.setAsDefault ? '&#10003;' : '') + '</span></div>' +
+        '<div class="boot-default-label">Set selected as default boot</div>' +
+      '</div>';
+
+    if (defaultSys){
+      html += '<span class="boot-clear-default" onclick="FluxOS.clearDefault()">Clear current default OS cache</span>';
+    }
+    html += '<span class="boot-config-link" onclick="FluxOS._openSettings()">\u2699 Configure app file locations</span>';
+    html += '</div>';
+
+    document.getElementById('boot-screen').innerHTML = html;
+  }
+
+  function toggleDefault(){
+    state.setAsDefault = !state.setAsDefault;
+    var box = document.getElementById('boot-checkbox');
+    if (box){
+      box.classList.toggle('checked', state.setAsDefault);
+      box.innerHTML = '<span>' + (state.setAsDefault ? '&#10003;' : '') + '</span>';
+    }
+  }
+
+  function openSettings(){
+    var paths = getPaths();
+    document.getElementById('cfg-finance').value = paths.finance;
+    document.getElementById('cfg-health').value = paths.health;
+    document.getElementById('settings-panel').style.display = 'flex';
+  }
+  function closeSettings(){
+    document.getElementById('settings-panel').style.display = 'none';
+  }
+  function saveSettings(){
+    var finance = document.getElementById('cfg-finance').value.trim() || DEFAULT_PATHS.finance;
+    var health = document.getElementById('cfg-health').value.trim() || DEFAULT_PATHS.health;
+    lsSet(LS_PATHS, { finance: finance, health: health });
+    // A full reload is the simplest way to guarantee both frames re-init
+    // cleanly against the new paths rather than juggling live iframe state.
+    window.location.reload();
+  }
+
+  window.FluxOS = {
+    launch: launch, show: show, bootMenu: bootMenu, clearDefault: clearDefault,
+    _toggleDefault: toggleDefault, _interruptBoot: interruptBoot,
+    _retryFrame: retryFrame, _openSettings: openSettings,
+    _closeSettings: closeSettings, _saveSettings: saveSettings
+  };
+
+  renderBootMenu();
+})();
+</script>
+
+<!--
+  SETUP NOTE
+  This file must sit in the same folder as FLUX.html and flux-health.html
+  for the default relative paths (./FLUX.html, ./flux-health.html) to
+  resolve. If your filenames differ, use "Configure app file locations"
+  on the boot screen instead of editing this file.
+
+  Neither app file has been modified in any way — this shell only ever
+  loads them, untouched, inside their own isolated frames.
+
+  If you see "didn't load" on every attempt and you're opening this file
+  directly on a phone (not through a real web address), that's very
+  likely iOS Safari blocking one local file from loading another over
+  file:// — a platform restriction, not a bug in this page. Hosting all
+  three files anywhere over http/https resolves it completely.
+-->
+</body>
+</html>
